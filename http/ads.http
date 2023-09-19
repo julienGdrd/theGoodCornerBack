@@ -1,0 +1,15 @@
+GET http://localhost:3000/ad
+
+###
+POST http://localhost:3000/ad
+Content-Type: application/json
+
+{
+    "title": "Computer",
+    "description":
+      "Second hand computer",
+    "owner": "Julien",
+    "price": 250,
+    "picture": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpP4hLjWZd1CoH8WnS4hNl9PhTQ3vfb_CpPgY30AHwvDRlw2EE9QvGczIp2uaQpY4bRoY&usqp=CAU",
+    "location": "Lyon"
+}
