@@ -5,7 +5,6 @@ app.use(express.json());
 const port: number = 3000;
 
 
-
 const ads: Ad[] = [
   {
     id: 1,
