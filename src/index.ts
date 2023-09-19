@@ -4,8 +4,7 @@ const app: Express = express();
 app.use(express.json());
 const port: number = 3000;
 
-
-const ads: Ad[] = [
+let ads: Ad[] = [
   {
     id: 1,
     title: "Bike to sell",
@@ -37,7 +36,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`App listening on port ${port}`);
 });
 
 app.get("/ad", (req: Request, res: Response) => {
@@ -46,8 +45,33 @@ app.get("/ad", (req: Request, res: Response) => {
 
 app.post("/ad", (req: Request, res: Response) => {
   const newId: number = ads.length + 1;
-  ads.push({ ...req.body,
-     id: newId,
-     createdAt: new Date().toISOString() });
+  ads.push({ ...req.body, id: newId, createdAt: new Date().toISOString() });
   res.send("Request received, check the backend terminal");
+});
+
+app.delete("/ad/:id", (req: Request, res: Response) => {
+  const idOfAdToDelete = parseInt(req.params.id, 10);
+
+  const adToDelete = ads.find((ad) => ad.id === idOfAdToDelete);
+
+  if (!adToDelete) return res.sendStatus(404);
+
+  ads = ads.filter((ad) => ad.id !== idOfAdToDelete);
+  res.sendStatus(204);
+});
+
+app.patch("/ad/:id", (req: Request, res: Response) => {
+  const idOfAdToUpdate = parseInt(req.params.id, 10);
+  const adToUpdate = ads.find((ad) => ad.id === idOfAdToUpdate);
+
+  if (!adToUpdate) return res.sendStatus(404);
+
+  const updatedAd = {
+    ...adToUpdate,
+    ...req.body,
+  };
+
+  const adIndex = ads.findIndex((ad) => ad.id === idOfAdToUpdate);
+  ads[adIndex] = updatedAd;
+  res.json(updatedAd);
 });
