@@ -1,6 +1,6 @@
-PATCH http://localhost:3000/ad/1
+PATCH http://localhost:3000/ad/8
 Content-Type: application/json
 
 {
-    "title": "Computer test"
+    "price": 15
 }
