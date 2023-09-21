@@ -1,4 +1,4 @@
-export interface Ad {
+export interface AdType {
     id: number;
     title: string;
     description: string;

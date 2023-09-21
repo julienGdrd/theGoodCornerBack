@@ -1,14 +1,18 @@
+import "reflect-metadata";
+
 import express, { Express, Request, Response } from "express";
-import { Ad } from "./utils/types";
+import { AdType } from "./utils/types";
+import { AdEntity } from "./entities/ad";
 import sqlite3 from "sqlite3";
 
-const db = new sqlite3.Database("good_corner.sqlite");
+import db from "./db";
+// const db = new sqlite3.Database("good_corner.sqlite");
 
 const app: Express = express();
 app.use(express.json());
 const port: number = 3000;
 
-let ads: Ad[] = [
+let ads: AdType[] = [
   {
     id: 1,
     title: "Bike to sell",
@@ -35,7 +39,8 @@ let ads: Ad[] = [
   },
 ];
 
-app.listen(port, () => {
+app.listen(port, async () => {
+  await db.initialize();
   console.log(`App listening on port ${port}`);
 });
 
@@ -43,124 +48,78 @@ app.get("/", (req: Request, res: Response) => {
   res.send("Hello World!");
 });
 
-app.get("/ad", (req: Request, res: Response) => {
-  db.all("SELECT * FROM ad", (err, rows) => {
-    if (!err) return res.send(rows);
+app.get("/ad", async (req: Request, res: Response) => {
+  try {
+    const ads = await AdEntity.find();
+    res.send(ads);
+  } catch (err) {
     console.log(err);
-  });
+    res.sendStatus(400);
+  }
 });
 
-app.post("/ad", (req: Request, res: Response) => {
-
-  const newAd = {
-    $title: req.body.title,
-    $description: req.body.description,
-    $owner: req.body.owner,
-    $price: req.body.price,
-    $picture: req.body.picture,
-    $location: req.body.location,
-    $createdAt: new Date().toISOString(),
-    $categorie_id: req.body.categorie_id,
-  };
-
-  const sql = `
-    INSERT INTO ad (title, description, owner, price, picture, location, createdAt, categorie_id)
-    VALUES ($title, $description, $owner, $price, $picture, $location, $createdAt, $categorie_id)
-  `;
-
-  db.run(sql, newAd, function (err) {
-    if (err) {
-      console.error("Erreur lors de l'insertion de l'annonce : " + err.message);
-      res.status(500).send("Erreur lors de l'insertion de l'annonce.");
-    } else {
-      console.log("Annonce insérée avec succès !");
-      res.status(201).send("Annonce insérée avec succès.");
-    }
-  });
-});
-
-// app.delete("/ad/:id", (req: Request, res: Response) => {
-//   const idOfAdToDelete: number = parseInt(req.params.id, 10);
-
-//   const adToDelete = ads.find((ad) => ad.id === idOfAdToDelete);
-
-//   if (!adToDelete) return res.sendStatus(404);
-
-//   ads = ads.filter((ad) => ad.id !== idOfAdToDelete);
-//   res.sendStatus(204);
-// });
-
-app.delete("/ad/:id", (req, res) => {
-  const idOfAdToDelete: number = parseInt(req.params.id, 10);
-  const sqlSelectById : string = "SELECT id FROM ad WHERE id = ?"
-  const sqlDeleteById : string = "DELETE FROM ad WHERE id = ?"
-  // Vérifier si l'annonce avec l'ID spécifié existe dans la base de données
-  db.get(sqlSelectById, idOfAdToDelete, (err, row) => {
-    if (err) {
-      console.error("Erreur lors de la recherche de l'annonce : " + err.message);
-      return res.status(500).send("Erreur lors de la recherche de l'annonce.");
-    }
-    if (!row) {
-      // L'annonce n'a pas été trouvée, renvoyer une réponse 404
-      return res.status(404).send("Annonce non trouvée.");
-    }
-
-    // Supprimer l'annonce avec l'ID spécifié
-    db.run(sqlDeleteById, idOfAdToDelete, (err) => {
-      if (err) {
-        console.error("Erreur lors de la suppression de l'annonce : " + err.message);
-        return res.status(500).send("Erreur lors de la suppression de l'annonce.");
-      }
-      console.log("Annonce supprimée avec succès !");
-      res.sendStatus(204);
-    });
-  });
-});
-
-// app.patch("/ad/:id", (req: Request, res: Response) => {
-//   const idOfAdToUpdate: number = parseInt(req.params.id, 10);
-//   const adToUpdate = ads.find((ad) => ad.id === idOfAdToUpdate);
-
-//   if (!adToUpdate) return res.sendStatus(404);
-
-//   const updatedAd = {
-//     ...adToUpdate,
-//     ...req.body,
-//   };
-
-//   const adIndex: number = ads.findIndex((ad) => ad.id === idOfAdToUpdate);
-//   ads[adIndex] = updatedAd;
-//   res.json(updatedAd);
-// });
-
-app.patch("/ad/:id", (req: Request, res: Response) => {
-  db.get("SELECT * FROM ad WHERE id = ?", [req.params.id], (err, row) => {
-    if (err) {
-      console.log(err);
-      return res.sendStatus(500);
-    }
-    if (!row) return res.sendStatus(404);
-
-    // creates a string with this shape : "title = $title, description = $description, ..."
-    const setProps = Object.keys(req.body)
-      .reduce<string[]>((acc, prop) => [...acc, `${prop} = $${prop}`], [])
-      .join(", ");
-
-    // creates an object with this shape : {$title: "title sent by client", "$description: " description sent by client", ...}
-    const propsToUpdate = Object.keys(req.body).reduce(
-      (acc, prop) => ({ ...acc, [`$${prop}`]: req.body[prop] }),
-      {}
+app.post("/ad", async (req: Request, res: Response) => {
+  try {
+    const newAd = AdEntity.create(req.body);
+    const newAdWithId = await newAd.save(newAd);
+    res.send(newAdWithId);
+    res.status(201);
+  } catch (err) {
+    console.error(
+      "Une erreur s'est produite lors de la création de l'annonce :",
+      err
     );
-
-    db.run(
-      `UPDATE ad SET ${setProps} WHERE id = $id`,
-      { ...propsToUpdate, $id: req.params.id },
-      (err: any) => {
-        if (!err) return res.send({ ...row, ...req.body });
-        console.log(err);
-        res.sendStatus(500);
-      }
-    );
-  });
+    res.sendStatus(500);
+  }
 });
 
+app.delete("/ad/:id", async (req, res) => {
+  try {
+    const idToDelete = parseInt(req.params.id, 10);
+
+    const adToDelete = await AdEntity.findBy({ id: idToDelete });
+
+    if (!adToDelete) {
+      return res.status(404).json({ erreur: "Annonce non trouvée" });
+    }
+
+    await AdEntity.remove(adToDelete);
+    res.sendStatus(204);
+  } catch (err) {
+    console.log(
+      "Une erreur s'est produite lors de la suppression de l'annonce :",
+      err
+    );
+    res
+      .status(500)
+      .json({ error: "Une erreur interne du serveur s'est produite." });
+  }
+});
+
+app.patch("/ad/:id", async (req: Request, res: Response) => {
+  try {
+    const idToUpdate = parseInt(req.params.id, 10);
+    const newUpdate = req.body;
+
+    const adToUpdate = await AdEntity.findOneBy({ id: idToUpdate });
+
+    if (!adToUpdate) {
+      return res.status(404).json({ erreur: "Annonce non trouvée" });
+    }
+
+    // Mise à jour l'annonce en fusionnant les données de req.body
+    AdEntity.merge(adToUpdate, newUpdate);
+
+    // Sauvegarde les modifications dans la base de données
+    await adToUpdate.save();
+    res.status(200).json(adToUpdate);
+  } catch (err) {
+    console.log(
+      "Une erreur s'est produite lors de la mise à jour de l'annonce :",
+      err
+    );
+    res
+      .status(500)
+      .json({ error: "Une erreur interne du serveur s'est produite." });
+  }
+});

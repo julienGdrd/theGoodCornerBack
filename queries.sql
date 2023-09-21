@@ -39,6 +39,7 @@ SELECT AVG(price) FROM ad WHERE location = 'Paris';
 
 SELECT location, AVG(price) AS moyenne_prix FROM ad GROUP BY location;
 
+--  Part 2
 CREATE TABLE categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(100)
