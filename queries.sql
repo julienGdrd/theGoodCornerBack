@@ -46,7 +46,6 @@ CREATE TABLE categories (
 );
 
 ALTER TABLE ad ADD COLUMN categorie_id INTEGER;
-
 ALTER TABLE ad ADD FOREIGN KEY (categorie_id) REFERENCES categories(id);
 
 INSERT INTO categories (name) VALUES

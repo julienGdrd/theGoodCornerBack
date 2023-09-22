@@ -1,95 +1,136 @@
 import "reflect-metadata";
-
-import express, { Express, Request, Response } from "express";
-import { AdEntity } from "./entities/ad";
-
+import express, { Request, Response } from "express";
+import { validate } from "class-validator";
 import db from "./db";
+import { Ad } from "./entities/ad";
+import { Category } from "./entities/category";
+import { Tag } from "./entities/tag";
+import { In, Like } from "typeorm";
 
-const app: Express = express();
+const app = express();
+const port = 3000;
+
 app.use(express.json());
-const port: number = 3000;
 
-app.listen(port, async () => {
-  await db.initialize();
-  console.log(`App listening on port ${port}`);
-});
-
-app.get("/", (req: Request, res: Response) => {
-  res.send("Hello World!");
-});
-
-app.get("/ad", async (req: Request, res: Response) => {
+app.get("/tags", async (req: Request, res: Response) => {
   try {
-    const ads = await AdEntity.find();
-    res.send(ads);
+    const { name } = req.query;
+    const tags = await Tag.find({
+      where: { name: name ? Like(`%${name}%`) : undefined },
+    });
+    res.send(tags);
   } catch (err) {
     console.log(err);
-    res.sendStatus(400);
-  }
-});
-
-app.post("/ad", async (req: Request, res: Response) => {
-  try {
-    const newAd = AdEntity.create(req.body);
-    const newAdWithId = await newAd.save(newAd);
-    res.send(newAdWithId);
-    res.status(201);
-  } catch (err) {
-    console.error(
-      "Une erreur s'est produite lors de la création de l'annonce :",
-      err
-    );
     res.sendStatus(500);
   }
 });
 
-app.delete("/ad/:id", async (req, res) => {
+app.get("/categories", async (req: Request, res: Response) => {
   try {
-    const idToDelete = parseInt(req.params.id, 10);
-
-    const adToDelete = await AdEntity.findBy({ id: idToDelete });
-
-    if (!adToDelete) {
-      return res.status(404).json({ erreur: "Annonce non trouvée" });
-    }
-
-    await AdEntity.remove(adToDelete);
-    res.sendStatus(204);
+    const categories = await Category.find({
+      relations: {
+        ads: false, // Si true : affiche les ads des catégories...
+      },
+    });
+    res.send(categories);
   } catch (err) {
-    console.log(
-      "Une erreur s'est produite lors de la suppression de l'annonce :",
-      err
-    );
-    res
-      .status(500)
-      .json({ error: "Une erreur interne du serveur s'est produite." });
+    console.log(err);
+    res.sendStatus(500);
   }
 });
 
-app.patch("/ad/:id", async (req: Request, res: Response) => {
+app.get("/ads", async (req: Request, res: Response) => {
+  const { tagIds } = req.query; // http://localhost:3000/ads?1,2
   try {
-    const idToUpdate = parseInt(req.params.id, 10);
-    const newUpdate = req.body;
-
-    const adToUpdate = await AdEntity.findOneBy({ id: idToUpdate });
-
-    if (!adToUpdate) {
-      return res.status(404).json({ erreur: "Annonce non trouvée" });
-    }
-
-    // Mise à jour l'annonce en fusionnant les données de req.body
-    AdEntity.merge(adToUpdate, newUpdate);
-
-    // Sauvegarde les modifications dans la base de données
-    await adToUpdate.save();
-    res.status(200).json(adToUpdate);
+    const ads = await Ad.find({
+      relations: {
+        category: true,
+        tags: true,
+      },
+      where: {
+        tags: {
+          id:
+            typeof tagIds === "string" && tagIds.length > 0
+              ? In(tagIds.split(",").map((t) => parseInt(t, 10)))
+              : undefined,
+        },
+      },
+    });
+    res.send(ads);
   } catch (err) {
-    console.log(
-      "Une erreur s'est produite lors de la mise à jour de l'annonce :",
-      err
-    );
-    res
-      .status(500)
-      .json({ error: "Une erreur interne du serveur s'est produite." });
+    console.log(err);
+    res.sendStatus(500);
   }
+});
+
+app.post("/ads", async (req: Request, res: Response) => {
+  try {
+    const newAd = Ad.create(req.body);
+    const errors = await validate(newAd);
+    if (errors.length !== 0) return res.status(422).send({ errors });
+    const newAdWithId = await newAd.save();
+    res.send(newAdWithId);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.post("/tags", async (req: Request, res: Response) => {
+  try {
+    const newTag = Tag.create(req.body);
+    const errors = await validate(newTag);
+    if (errors.length !== 0) return res.status(422).send({ errors });
+    res.send(await newTag.save());
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.delete("/ads/:id", async (req: Request, res: Response) => {
+  try {
+    const adToDelete = await Ad.findOneBy({ id: parseInt(req.params.id, 10) });
+    if (!adToDelete) return res.sendStatus(404);
+    await adToDelete.remove();
+    res.sendStatus(204);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.delete("/tags/:id", async (req: Request, res: Response) => {
+  try {
+    const tagToDelete = await Tag.findOneBy({
+      id: parseInt(req.params.id, 10),
+    });
+    if (!tagToDelete) return res.sendStatus(404);
+    await tagToDelete.remove();
+    res.sendStatus(204);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.patch("/ads/:id", async (req: Request, res: Response) => {
+  try {
+    const adToUpdate = await Ad.findOneBy({ id: parseInt(req.params.id, 10) });
+    if (!adToUpdate) return res.sendStatus(404);
+
+    await Ad.merge(adToUpdate, req.body);
+    const errors = await validate(adToUpdate);
+    if (errors.length !== 0) return res.status(422).send({ errors });
+
+    res.send(await adToUpdate.save());
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.listen(port, async () => {
+  await db.initialize();
+  console.log(`Server running on http://localhost:${port}`);
 });
