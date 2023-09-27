@@ -2,5 +2,5 @@ POST http://localhost:3000/tags
 Content-Type: application/json
 
 {
-  "name": "tag4"
+  "name": "tagTest"
 }

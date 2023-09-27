@@ -6,11 +6,13 @@ import { Ad } from "./entities/ad";
 import { Category } from "./entities/category";
 import { Tag } from "./entities/tag";
 import { In, Like } from "typeorm";
+import cors from "cors";
 
 const app = express();
-const port = 3000;
+const port = 4000;
 
 app.use(express.json());
+app.use(cors());
 
 app.get("/tags", async (req: Request, res: Response) => {
   try {
@@ -40,7 +42,9 @@ app.get("/categories", async (req: Request, res: Response) => {
 });
 
 app.get("/ads", async (req: Request, res: Response) => {
-  const { tagIds } = req.query; // http://localhost:3000/ads?1,2
+  const { tagIds } = req.query;
+  const { title } = req.query;
+  // http://localhost:4000/ads?title=mac&tagIds=1,2
   try {
     const ads = await Ad.find({
       relations: {
@@ -54,9 +58,25 @@ app.get("/ads", async (req: Request, res: Response) => {
               ? In(tagIds.split(",").map((t) => parseInt(t, 10)))
               : undefined,
         },
+        title:
+          typeof title === "string" && title.length > 0
+            ? Like(`%${title}%`)
+            : undefined,
       },
     });
     res.send(ads);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
+  }
+});
+
+app.get("/ads/:id", async (req: Request, res: Response) => {
+  const adId = parseInt(req.params.id);
+  try {
+    const ad = await Ad.findOneBy({ id: adId });
+    if (!ad) return res.sendStatus(404);
+    res.send(ad);
   } catch (err) {
     console.log(err);
     res.sendStatus(500);
